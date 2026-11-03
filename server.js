@@ -53,7 +53,8 @@ function cors(res){res.setHeader('Access-Control-Allow-Origin','https://vidnex-w
 function send(res,status,obj){cors(res);res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'});res.end(JSON.stringify(obj));}
 const server=http.createServer(async(req,res)=>{
   const base='http://'+(req.headers.host||'localhost');
-  const u=new URL(req.url,base);\n  if(req.method==='OPTIONS'){cors(res);res.writeHead(204);return res.end();}
+  const u=new URL(req.url,base);
+  if(req.method==='OPTIONS'){cors(res);res.writeHead(204);return res.end();}
   if(u.pathname==='/api/health') return send(res,200,{ok:true,service:'VIDNEX'});
   if(u.pathname==='/api/inspect' && req.method==='GET') {
     try {
