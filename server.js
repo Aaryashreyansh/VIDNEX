@@ -49,10 +49,10 @@ async function remoteFetch(raw, method='GET', headers={}) {
   }
   throw new Error('Too many redirects from the media host.');
 }
-function send(res,status,obj){res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'});res.end(JSON.stringify(obj));}
+function cors(res){res.setHeader('Access-Control-Allow-Origin','https://vidnex-web.onrender.com');res.setHeader('Access-Control-Allow-Methods','GET, HEAD, OPTIONS');res.setHeader('Access-Control-Allow-Headers','Range, Content-Type');res.setHeader('Access-Control-Expose-Headers','Content-Length, Content-Range, Accept-Ranges');}\nfunction send(res,status,obj){cors(res);res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'});res.end(JSON.stringify(obj));}
 const server=http.createServer(async(req,res)=>{
   const base='http://'+(req.headers.host||'localhost');
-  const u=new URL(req.url,base);
+  const u=new URL(req.url,base);\n  if(req.method==='OPTIONS'){cors(res);res.writeHead(204);return res.end();}
   if(u.pathname==='/api/health') return send(res,200,{ok:true,service:'VIDNEX'});
   if(u.pathname==='/api/inspect' && req.method==='GET') {
     try {
@@ -80,7 +80,7 @@ const server=http.createServer(async(req,res)=>{
       if(size>MAX_BYTES) { await upstream.body?.cancel(); return send(res,413,{error:'This file is larger than the current 1 GB limit.'}); }
       const type=upstream.headers.get('content-type')||'application/octet-stream';
       const filename=(new URL(target).pathname.split('/').pop()||'vidnex-video.mp4').replace(/[^a-zA-Z0-9._-]/g,'_').slice(0,120);
-      const out={'content-type':type,'content-disposition':'attachment; filename="'+(filename.includes('.')?filename:'vidnex-video.mp4')+'"','cache-control':'no-store','x-content-type-options':'nosniff'};
+      const out={'access-control-allow-origin':'https://vidnex-web.onrender.com','access-control-expose-headers':'Content-Length, Content-Range, Accept-Ranges','content-type':type,'content-disposition':'attachment; filename="'+(filename.includes('.')?filename:'vidnex-video.mp4')+'"','cache-control':'no-store','x-content-type-options':'nosniff'};
       for(const h of ['content-length','content-range','accept-ranges']) { const v=upstream.headers.get(h); if(v) out[h]=v; }
       res.writeHead(upstream.status,out);
       if(!upstream.body) return res.end();
