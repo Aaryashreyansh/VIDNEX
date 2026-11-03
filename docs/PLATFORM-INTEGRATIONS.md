@@ -1,49 +1,51 @@
 # VIDNEX platform integration architecture
 
-## Current implementation boundary
+## Product scope
 
-VIDNEX supports direct public MP4/WebM/MOV/M4V URLs through its own streaming endpoint. The UI recognizes several platform URLs and uses their official player/embed surfaces where available. An embed is playback, not a downloadable media file.
+VIDNEX supports only:
+- YouTube official embeds and documented YouTube Data API metadata.
+- Instagram official embeds and documented Instagram APIs for content the signed-in user is authorized to access.
+- Public direct MP4, WebM, MOV and M4V file URLs that the user owns or is authorized to download.
 
-## Adapter architecture
+Do not add TikTok, Facebook, X, Vimeo, or other providers unless the product owner explicitly changes scope.
 
-Each provider adapter must expose:
-- `detect(url)`: identify a supported URL and normalize its canonical ID.
-- `preview(url)`: return an official embed/player URL or an outbound link.
-- `metadata(authContext, id)`: call only the provider's documented API and only for data the user authorized.
-- `download(authContext, id)`: return a file URL only when the provider API explicitly grants one for that account/content.
+## Capability boundaries
 
-The UI must never treat a player URL, page URL, HLS manifest, or embed URL as a direct file download.
-
-## Provider matrix
-
-| Provider | Public preview | Authorized API scope | File download |
+| Source | Preview | Metadata | Download |
 |---|---|---|---|
-| Direct MP4/WebM | Native HTML video | Not required | Yes, when URL is public and user has rights |
-| YouTube | Official IFrame Player | Data API for metadata; OAuth for account features | No general video-file download endpoint |
-| Instagram | Official embed | Professional-account Graph API / Instagram Login scopes | No general public-Reel download endpoint |
-| TikTok | Official player/embed | Display API with creator authorization and approved scopes | Display API is for profile/video display, not general file downloads |
-| Facebook | Official video plugin | Meta Graph API with approved permissions | Only if a documented authorized file URL is returned |
-| X | Official post embed / outbound post | X API with the relevant access tier and scopes | Only if the API response and account rights permit it |
-| Vimeo | Official player | Vimeo API token with appropriate scopes | Yes, when API returns file/download links for authorized account content |
+| YouTube | Official YouTube IFrame Player | YouTube Data API, optional server-side key | No general video-file download endpoint in the public API |
+| Instagram | Official Instagram embed where permitted | Instagram Graph API / Instagram Login for authorized accounts and approved scopes | No general public-Reel download endpoint |
+| Direct media URL | Native HTML video when supported | HTTP headers such as content type and length | Stream the original file when publicly reachable and authorized |
 
-## Required secrets (server-side only)
+An embed URL or webpage URL is not a media file. Never show a download action for a YouTube/Instagram page, player URL, HLS manifest, private post, or media that the official API does not explicitly authorize.
 
-- `YOUTUBE_API_KEY` (metadata only; never use it to fetch media streams)
-- `META_APP_ID`, `META_APP_SECRET`, OAuth callback configuration, and user-granted tokens for Instagram/Facebook
-- `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, OAuth callback configuration, and creator-granted tokens
-- `X_CLIENT_ID`, `X_CLIENT_SECRET`, OAuth callback configuration, and approved API access
-- `VIMEO_CLIENT_ID`, `VIMEO_CLIENT_SECRET`, and user-granted token with the `video_files` scope
+## Backend design
 
-Never commit secrets or tokens to Git. Configure them as Render environment variables after provider developer-app approval.
+- `GET /api/health`: service health.
+- `GET /api/inspect?url=<encoded-url>`: validate a public URL, issue a HEAD request, and return content type, size and byte-range support for direct media only.
+- `GET /api/download?url=<encoded-url>`: stream the original direct media file, forwarding browser Range requests and preserving upstream range headers.
+- Future `GET /api/youtube/video?id=<video-id>`: optional metadata lookup using server-side `YOUTUBE_API_KEY`; metadata only, never a media stream.
+- Instagram account access must use the documented OAuth flow and user-granted scopes. Tokens remain server-side and are never exposed in frontend code.
 
-## Implementation phases
+## Security requirements
 
-1. Direct-file reliability: validate content type, support byte ranges, stream safely, reject private-network targets, and test with a permitted sample file.
-2. Provider recognition and official previews: YouTube, Instagram, TikTok, Facebook, Vimeo; X outbound/official embed.
-3. OAuth account linking with state/PKCE, encrypted server-side token storage, least-privilege scopes, token refresh, and disconnect/revoke.
-4. Provider-specific metadata and file capability adapters. Show a download button only when a provider explicitly returns an authorized downloadable file.
-5. Security, privacy, rate limiting, abuse controls, provider policy review, and integration tests.
+- Accept only HTTP/HTTPS URLs.
+- Reject localhost, private, link-local and reserved IP ranges.
+- Revalidate redirect destinations.
+- Limit file size and redirect count.
+- Never accept arbitrary user-supplied headers.
+- Keep provider secrets and OAuth tokens in Render environment variables or secure server-side storage, never in Git or browser JavaScript.
+- Add rate limiting before exposing the download API publicly at scale.
+- Do not bypass DRM, authentication, paywalls, private posts or platform restrictions.
+
+## Implementation order
+
+1. Verify the existing direct-file inspect and streaming endpoints with permitted MP4/WebM test files.
+2. Add browser-friendly download status and clear error messages without buffering large files into browser memory.
+3. Add optional YouTube Data API metadata with a server-side key.
+4. Add Instagram account authorization only after the Meta developer app and approved permissions are configured.
+5. Test mobile and desktop behavior, redirects, Range requests, invalid URLs and oversized files.
 
 ## Current state
 
-The frontend currently recognizes Instagram, YouTube, TikTok, Facebook, Vimeo and X URLs. It provides official embed/player previews for providers with supported embed URLs and a safe outbound notice for X. OAuth, provider API calls, token storage, and platform-specific file downloads are not yet implemented. The direct-file backend is separate and remains the only implemented download path.
+The frontend recognizes YouTube, Instagram and direct media links. YouTube and Instagram use official embed players; direct media uses the existing streaming backend. Platform-specific OAuth and metadata routes are not yet configured. The direct media endpoint is implemented but must pass live end-to-end tests before being described as production-verified.
