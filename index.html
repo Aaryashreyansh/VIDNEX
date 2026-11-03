@@ -15,8 +15,17 @@ async function validate(){
  if(!raw){status.textContent='Paste a direct video URL first.';return}
  let u;try{u=new URL(raw)}catch{status.textContent='Please enter a valid URL.';return}
  if(!['http:','https:'].includes(u.protocol)){status.textContent='Only HTTP/HTTPS video links are supported.';return}
- const ig=u.hostname.toLowerCase().replace(/^www\./,'');const reel=u.pathname.match(/^\/reel\/([A-Za-z0-9_-]+)/);
- if(ig==='instagram.com' && reel){igpreview.src='https://www.instagram.com/reel/'+reel[1]+'/embed/';igpreview.hidden=false;previewhint.hidden=true;status.textContent='Instagram Reel link recognized. This is an official Instagram embed preview only. VIDNEX cannot extract or download the MP4 from this page link. Use a creator-provided direct download link for saving.';return}
+ const host=u.hostname.toLowerCase().replace(/^www\./,'');
+ const pathParts=u.pathname.split('/').filter(Boolean);
+ let provider=null, embedUrl=null, providerNote='';
+ const yt=(host==='youtu.be'||host==='youtube.com'||host==='m.youtube.com'||host==='youtube-nocookie.com') ? (host==='youtu.be'?pathParts[0]:(u.searchParams.get('v')||((pathParts[0]==='shorts'||pathParts[0]==='embed')?pathParts[1]:null))) : null;
+ if(yt && /^[A-Za-z0-9_-]{11}$/.test(yt)){provider='YouTube';embedUrl='https://www.youtube-nocookie.com/embed/'+yt;providerNote='Official YouTube player preview. YouTube API does not provide a general video-file download endpoint.'}
+ else if(host==='instagram.com' && pathParts[0]==='reel' && pathParts[1]){provider='Instagram';embedUrl='https://www.instagram.com/reel/'+pathParts[1]+'/embed/';providerNote='Official Instagram embed preview. MP4 download is not provided by this public Reel URL.'}
+ else if(host==='tiktok.com' && (pathParts[0]==='@' || pathParts[0]?.startsWith('@')) && pathParts[1]==='video' && pathParts[2]){provider='TikTok';embedUrl='https://www.tiktok.com/player/v1/'+pathParts[2];providerNote='TikTok player preview. Display API access requires creator authorization and does not grant general downloads.'}
+ else if((host==='vimeo.com'||host==='player.vimeo.com') && pathParts.length){const id=host==='player.vimeo.com'?(pathParts[1]==='video'?pathParts[2]:null):pathParts[0];if(id&&/^\\d+$/.test(id)){provider='Vimeo';embedUrl='https://player.vimeo.com/video/'+id;providerNote='Vimeo player preview. Download links require an authorized Vimeo API token with video-file scopes.'}}
+ else if((host==='facebook.com'||host==='fb.watch') && (pathParts.includes('videos')||pathParts[0]==='watch'||host==='fb.watch')){provider='Facebook';embedUrl='https://www.facebook.com/plugins/video.php?href='+encodeURIComponent(u.href)+'&show_text=false';providerNote='Facebook official video embed. Availability depends on the post privacy and embed settings.'}
+ if(provider && embedUrl){igpreview.src=embedUrl;igpreview.hidden=false;previewhint.hidden=true;status.textContent=provider+' link recognized. '+providerNote+' VIDNEX will not extract protected streams.';return}
+ if(host==='x.com'||host==='twitter.com'){provider='X';status.textContent='X post recognized. Open the original post to view its official embedded media. File download requires a creator-provided direct media URL.';previewhint.textContent='X embed preview is not yet connected. Open the post on X.';return}
  check.disabled=true;check.textContent='Checking…';status.textContent='Checking the source and video file…';
  try{
   const response=await fetch('https://vidnex-download-api.onrender.com/api/inspect?url='+encodeURIComponent(u.href));
