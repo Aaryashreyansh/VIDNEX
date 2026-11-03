@@ -17,11 +17,11 @@ async function validate(){
  if(!['http:','https:'].includes(u.protocol)){status.textContent='Only HTTP/HTTPS video links are supported.';return}
  check.disabled=true;check.textContent='Checking…';status.textContent='Checking the source and video file…';
  try{
-  const response=await fetch('/api/inspect?url='+encodeURIComponent(u.href));
+  const response=await fetch('https://vidnex-download-api.onrender.com/api/inspect?url='+encodeURIComponent(u.href));
   const data=await response.json();if(!response.ok)throw new Error(data.error||'Video check failed.');
   preview.src=u.href;preview.hidden=false;previewhint.hidden=true;
   preview.onerror=()=>{previewhint.hidden=false;previewhint.textContent='Preview is blocked by the source, but you can still try the download.'};
-  download.href='/api/download?url='+encodeURIComponent(u.href);download.hidden=false;
+  download.href='https://vidnex-download-api.onrender.com/api/download?url='+encodeURIComponent(u.href);download.hidden=false;
   status.textContent='Video detected · '+data.type+' · '+fmt(data.size)+'. Download uses the source file as provided. Selected '+quality.value+' is not a conversion.';
  }catch(e){status.textContent=e.message+' Try a direct MP4/WebM/MOV/M4V file link that you own or are authorized to download.'}
  finally{check.disabled=false;check.innerHTML='Check link <span>↗</span>'}
