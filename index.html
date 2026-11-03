@@ -15,7 +15,7 @@ async function validate(){
  if(!raw){status.textContent='Paste a direct video URL first.';return}
  let u;try{u=new URL(raw)}catch{status.textContent='Please enter a valid URL.';return}
  if(!['http:','https:'].includes(u.protocol)){status.textContent='Only HTTP/HTTPS video links are supported.';return}
- const ig=u.hostname.toLowerCase().replace(/^www\\./,'');const reel=u.pathname.match(/^\\/reel\\/([A-Za-z0-9_-]+)/);
+ const ig=u.hostname.toLowerCase().replace(/^www\./,'');const reel=u.pathname.match(/^\/reel\/([A-Za-z0-9_-]+)/);
  if(ig==='instagram.com' && reel){igpreview.src='https://www.instagram.com/reel/'+reel[1]+'/embed/';igpreview.hidden=false;previewhint.hidden=true;status.textContent='Instagram Reel link recognized. This is an official Instagram embed preview only. VIDNEX cannot extract or download the MP4 from this page link. Use a creator-provided direct download link for saving.';return}
  check.disabled=true;check.textContent='Checking…';status.textContent='Checking the source and video file…';
  try{
