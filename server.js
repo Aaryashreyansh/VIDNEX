@@ -49,7 +49,8 @@ async function remoteFetch(raw, method='GET', headers={}) {
   }
   throw new Error('Too many redirects from the media host.');
 }
-function cors(res){res.setHeader('Access-Control-Allow-Origin','https://vidnex-web.onrender.com');res.setHeader('Access-Control-Allow-Methods','GET, HEAD, OPTIONS');res.setHeader('Access-Control-Allow-Headers','Range, Content-Type');res.setHeader('Access-Control-Expose-Headers','Content-Length, Content-Range, Accept-Ranges');}\nfunction send(res,status,obj){cors(res);res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'});res.end(JSON.stringify(obj));}
+function cors(res){res.setHeader('Access-Control-Allow-Origin','https://vidnex-web.onrender.com');res.setHeader('Access-Control-Allow-Methods','GET, HEAD, OPTIONS');res.setHeader('Access-Control-Allow-Headers','Range, Content-Type');res.setHeader('Access-Control-Expose-Headers','Content-Length, Content-Range, Accept-Ranges');}
+function send(res,status,obj){cors(res);res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'});res.end(JSON.stringify(obj));}
 const server=http.createServer(async(req,res)=>{
   const base='http://'+(req.headers.host||'localhost');
   const u=new URL(req.url,base);\n  if(req.method==='OPTIONS'){cors(res);res.writeHead(204);return res.end();}
