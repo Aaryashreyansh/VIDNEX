@@ -11,6 +11,10 @@
 <div id="status" class="status" aria-live="polite"><span class="status-dot"></span><span>Ready</span></div>
 <div class="previewbox"><div class="previewhead"><span>PREVIEW</span><span id="previewtype"></span></div><video id="preview" controls playsinline hidden></video><iframe id="igpreview" title="Official video preview" hidden loading="lazy" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe><div id="previewhint" class="previewhint"><strong>Preview</strong></div></div>
 <a id="download" class="download" hidden>↓ <span>Download</span></a>
+<div id="queue" class="queue" hidden>
+  <div class="queue-head"><strong>Download queue</strong><span id="queuecount">0</span></div>
+  <div id="queuelist" class="queuelist"></div>
+</div>
 </div>
 </section>
 </main><footer><a class="brand" href="/"><span class="mark">V</span><span>VIDNEX</span></a></footer>
@@ -33,5 +37,26 @@ async function validate(){
  try{const response=await fetch(API+'/api/inspect?url='+encodeURIComponent(u.href));const data=await response.json();if(!response.ok)throw new Error(data.error||'This link is not a supported direct media file.');preview.src=u.href;preview.hidden=false;previewhint.hidden=true;previewtype.textContent='DIRECT MEDIA';preview.onerror=()=>{previewhint.hidden=false;previewhint.querySelector('strong').textContent='Preview blocked by source';previewhint.querySelector('span').textContent='You can still try the authorized download.'};download.href=API+'/api/download?url='+encodeURIComponent(u.href);download.hidden=false;setStatus('Video ready · '+data.type,'success')}catch(e){setStatus(e.message+' Try a public MP4 or WebM file URL.','error')}finally{check.disabled=false;check.classList.remove('loading');check.querySelector('span').textContent='Analyze link'}
 }
 check.addEventListener('click',validate);input.addEventListener('keydown',e=>{if(e.key==='Enter')validate()});
+const queueBox=document.querySelector('#queue'),queueList=document.querySelector('#queuelist'),queueCount=document.querySelector('#queuecount');
+const jobs=[];
+function renderQueue(){
+ queueBox.hidden=jobs.length===0;
+ queueCount.textContent=String(jobs.length);
+ queueList.replaceChildren();
+ jobs.forEach((job,i)=>{
+  const row=document.createElement('div');row.className='queue-item';
+  const name=document.createElement('span');name.textContent=job.name;
+  const link=document.createElement('a');link.href=job.href;link.textContent='Download';link.setAttribute('download','');link.className='queue-download';
+  row.append(name,link);queueList.append(row);
+ });
+}
+download.addEventListener('click',()=>{
+ if(!download.href||download.hidden)return;
+ const href=download.href;
+ if(jobs.some(j=>j.href===href)){setStatus('Already in download queue.','info');return;}
+ let name='video file';try{name=decodeURIComponent(new URL(input.value).pathname.split('/').pop())||name}catch{}
+ jobs.push({href,name});renderQueue();setStatus('Added to download queue. Tap Download to start.','success');
+});
+
 let deferred;const install=document.querySelector('#install');window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;install.hidden=false});install.addEventListener('click',async()=>{if(!deferred)return;deferred.prompt();await deferred.userChoice;deferred=null;install.hidden=true});if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 </script></body></html>
