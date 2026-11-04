@@ -60,13 +60,19 @@ const server=http.createServer(async(req,res)=>{
     try {
       const target=u.searchParams.get('url');
       if(!target) return send(res,400,{error:'Paste a video URL first.'});
-      const r=await remoteFetch(target,'HEAD');
+      let r=await remoteFetch(target,'HEAD');
+      if([403,405,501].includes(r.status)) {
+        await r.body?.cancel();
+        r=await remoteFetch(target,'GET',{Range:'bytes=0-0'});
+      }
       const type=r.headers.get('content-type')||'';
       const length=Number(r.headers.get('content-length')||0);
-      const range=r.headers.get('accept-ranges')==='bytes';
+      const range=(r.headers.get('accept-ranges')||'').toLowerCase()==='bytes' || r.status===206;
       await r.body?.cancel();
-      if(!r.ok) return send(res,422,{error:'The source did not provide a downloadable file (HTTP '+r.status+').'});
-      if(!type.startsWith('video/') && !/\.(mp4|webm|mov|m4v)(?:$|\?)/i.test(new URL(target).pathname)) return send(res,422,{error:'This is not recognized as a direct video file. Streaming page links are not supported.'});
+      if(!r.ok && r.status!==206) return send(res,422,{error:'The source did not provide a downloadable file (HTTP '+r.status+').'});
+      const ext=/\.(mp4|webm|mov|m4v)$/i.test(new URL(target).pathname);
+      if(!type.toLowerCase().startsWith('video/') && !ext) return send(res,422,{error:'This is not a direct video file. Paste a direct MP4, WebM, MOV or M4V file URL, not a webpage or social-media post.'});
+      if(length>MAX_BYTES) return send(res,413,{error:'This file is larger than the current 1 GB limit.'});
       return send(res,200,{ok:true,type:type||'video file',size:length,range,qualityNote:'The source file is delivered as-is. Quality selection is available only when the source provides separate quality URLs.'});
     } catch(e) { return send(res,400,{error:e.message||'Could not inspect this video link.'}); }
   }
@@ -79,15 +85,17 @@ const server=http.createServer(async(req,res)=>{
       const upstream=await remoteFetch(target,'GET',headers);
       if(!upstream.ok && upstream.status!==206) { await upstream.body?.cancel(); return send(res,422,{error:'The source refused the download (HTTP '+upstream.status+').'}); }
       const size=Number(upstream.headers.get('content-length')||0);
-      if(size>MAX_BYTES) { await upstream.body?.cancel(); return send(res,413,{error:'This file is larger than the current 1 GB limit.'}); }
       const type=upstream.headers.get('content-type')||'application/octet-stream';
+      const ext=/\.(mp4|webm|mov|m4v)$/i.test(new URL(target).pathname);
+      if(!type.toLowerCase().startsWith('video/') && !ext) { await upstream.body?.cancel(); return send(res,422,{error:'This URL is not a direct video file.'}); }
+      if(size>MAX_BYTES) { await upstream.body?.cancel(); return send(res,413,{error:'This file is larger than the current 1 GB limit.'}); }
       const filename=(new URL(target).pathname.split('/').pop()||'vidnex-video.mp4').replace(/[^a-zA-Z0-9._-]/g,'_').slice(0,120);
       const out={'access-control-allow-origin':'https://vidnex-web.onrender.com','access-control-expose-headers':'Content-Length, Content-Range, Accept-Ranges','content-type':type,'content-disposition':'attachment; filename="'+(filename.includes('.')?filename:'vidnex-video.mp4')+'"','cache-control':'no-store','x-content-type-options':'nosniff'};
       for(const h of ['content-length','content-range','accept-ranges']) { const v=upstream.headers.get(h); if(v) out[h]=v; }
       res.writeHead(upstream.status,out);
       if(!upstream.body) return res.end();
       const reader=upstream.body.getReader();
-      try { while(true) { const {done,value}=await reader.read(); if(done) break; if(!res.write(Buffer.from(value))) await new Promise(resolve=>res.once('drain',resolve)); } res.end(); }
+      let sent=0; try { while(true) { const {done,value}=await reader.read(); if(done) break; sent+=value.byteLength; if(sent>MAX_BYTES) { await reader.cancel(); res.destroy(); return; } if(!res.write(Buffer.from(value))) await new Promise(resolve=>res.once('drain',resolve)); } res.end(); }
       catch { res.destroy(); }
     } catch(e) { if(!res.headersSent) send(res,400,{error:e.message||'Download failed.'}); else res.destroy(); }
     return;
